@@ -14,6 +14,7 @@ def embed_ecdna(
         hub_dir: str,
         model_type: str = 'dinov2_vits14_lc',
         patch_size: int = 14,
+        batch_size: int = 10,
         num_cells_per_row: int = 10,
         num_cells_per_col: int = 10,
         image_max: int = 2**16 - 1
@@ -24,6 +25,7 @@ def embed_ecdna(
     :param hub_dir: A directory where the DINOv2 model will be saved.
     :param model_type: The type of DINOv2 model to use.
     :param patch_size: The size of the patches used by the DINOv2 model.
+    :param batch_size: The batch size.
     :param num_cells_per_row: The number of cells per row.
     :param num_cells_per_col: The number of cells per column.
     :param image_max: The maximum value of the image. Used to normalize the image.
@@ -36,7 +38,7 @@ def embed_ecdna(
     model = torch.hub.load('facebookresearch/dinov2', model_type)
 
     # Move to cuda
-    model = model.cuda()
+    model = model.eval().cuda()
 
     # TODO: try merging ecDNA stain and hoechst stain into one image
 
@@ -97,8 +99,22 @@ def embed_ecdna(
         # Move to cuda
         cells = cells.cuda()
 
-        # Run model
-        cell_features = model(cells)  # (num_cells, hidden_dim)
+        # Run model in batches
+        cell_features = []
+
+        with torch.no_grad():
+            for i in range(0, len(cells), batch_size):
+                # Get batch of cells
+                batch_cells = cells[i: i + batch_size]
+
+                # Compute features
+                batch_features = model(batch_cells)
+
+                # Add to list
+                cell_features.append(batch_features.cpu())
+
+        # Concatenate features
+        cell_features = torch.cat(cell_features, dim=0)  # (num_cells, feature_dim)
 
         # Save features
         save_path = image_path.with_suffix('.pt')
