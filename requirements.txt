@@ -10,3 +10,8 @@ submitit
 --extra-index-url https://pypi.nvidia.com
 cuml-cu11
 typed-argument-parser
+notebook
+umap-learn
+matplotlib
+seaborn
+scikit-learn
