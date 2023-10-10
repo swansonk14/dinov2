@@ -83,15 +83,23 @@ def embed_ecdna(
         cell_height = image_height // num_cells_per_col
 
         # Split image into cells
-        cells = torch.zeros((num_cells_per_row * num_cells_per_col, 1, cell_height, cell_width), dtype=torch.float)  # (num_cells, 1, cell_height, cell_width)
+        cells = []
 
-        for i in range(num_cells_per_row):
-            for j in range(num_cells_per_col):
-                cells[i * num_cells_per_row + j] = image[
-                    :,
-                    j * cell_height: (j + 1) * cell_height,
-                    i * cell_width: (i + 1) * cell_width
+        for row in range(num_cells_per_col):  # iterate over rows
+            for col in range(num_cells_per_row):  # iterate over columns
+                # Get cell
+                cell = image[
+                       :,
+                       row * cell_height: (row + 1) * cell_height,
+                       col * cell_width: (col + 1) * cell_width
                 ]
+
+                # Keep cell if non-empty
+                if cell.abs().sum() > 0:
+                    cells.append(cell)
+
+        # Convert cells to tensor
+        cells = torch.stack(cells)  # (num_cells, 1, cell_height, cell_width)
 
         # Expand to three channels
         cells = cells.expand(-1, 3, -1, -1)  # (num_cells, 3, cell_height, cell_width)
