@@ -7,12 +7,10 @@ from torchvision import transforms
 from tqdm import tqdm
 
 
-# TODO: check the image width/height and why not a multiple of 10
-# TODO: check if images are always 10x10 cells
 def embed_ecdna(
         data_dir: Path,
         hub_dir: str,
-        model_type: str = 'dinov2_vits14_lc',
+        model_type: str = 'dinov2_vits14',
         patch_size: int = 14,
         batch_size: int = 10,
         num_cells_per_row: int = 10,
