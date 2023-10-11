@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 def embed_ecdna(
         data_dir: Path,
+        save_dir: Path,
         hub_dir: str,
         model_type: str = 'dinov2_vits14',
         patch_size: int = 14,
@@ -20,6 +21,7 @@ def embed_ecdna(
     """Embed ecDNA images using DINOv2.
 
     :param data_dir: A directory containing the ecDNA images as .tif images.
+    :param save_dir: A directory where the DINOv2 embeddings will be saved.
     :param hub_dir: A directory where the DINOv2 model will be saved.
     :param model_type: The type of DINOv2 model to use.
     :param patch_size: The size of the patches used by the DINOv2 model.
@@ -123,7 +125,8 @@ def embed_ecdna(
         cell_features = torch.cat(cell_features, dim=0)  # (num_cells, feature_dim)
 
         # Save features
-        save_path = image_path.with_suffix('.pt')
+        save_path = save_dir / Path(*image_path.with_suffix('.pt').parts[-2:])
+        save_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(cell_features, save_path)
 
 
