@@ -94,6 +94,11 @@ def embed_ecdna(
                 if cell.abs().sum() > 0:
                     cells.append(cell)
 
+        # Check that there are cells
+        if len(cells) == 0:
+            print(f"Warning: No cells found in {image_path}")
+            continue
+
         # Convert cells to tensor
         cells = torch.stack(cells)  # (num_cells, num_channels, cell_height, cell_width)
 
