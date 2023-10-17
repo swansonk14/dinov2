@@ -8,15 +8,15 @@ from tqdm import tqdm
 
 
 def embed_ecdna(
-        data_dir: Path,
-        save_dir: Path,
-        hub_dir: str,
-        model_type: str = 'dinov2_vits14',
-        patch_size: int = 14,
-        batch_size: int = 10,
-        num_cells_per_row: int = 10,
-        num_cells_per_col: int = 10,
-        image_max: int = 2**16 - 1
+    data_dir: Path,
+    save_dir: Path,
+    hub_dir: str,
+    model_type: str = "dinov2_vits14",
+    patch_size: int = 14,
+    batch_size: int = 10,
+    num_cells_per_row: int = 10,
+    num_cells_per_col: int = 10,
+    image_max: int = 2 ** 16 - 1,
 ) -> None:
     """Embed ecDNA images using DINOv2.
 
@@ -35,15 +35,13 @@ def embed_ecdna(
 
     # Load model
     torch.hub.set_dir(hub_dir)
-    model = torch.hub.load('facebookresearch/dinov2', model_type)
+    model = torch.hub.load("facebookresearch/dinov2", model_type)
 
     # Move to cuda
     model = model.eval().cuda()
 
-    # TODO: try merging ecDNA stain and hoechst stain into one image
-
     # Get image paths
-    image_paths = list(data_dir.glob('**/*.tif'))
+    image_paths = list(data_dir.glob("**/*.tif"))
 
     # Process each image
     for image_path in tqdm(image_paths):
@@ -56,27 +54,29 @@ def embed_ecdna(
         # Upsample the image to the next multiple of patch_size * num_cells_per_row/col
         image_width_needed_multiple = patch_size * num_cells_per_row
         image_height_needed_multiple = patch_size * num_cells_per_col
-        image = image.resize((
-            image_width + (image_width_needed_multiple - image_width % image_width_needed_multiple),
-            image_height + (image_height_needed_multiple - image_height % image_height_needed_multiple)
-        ))
+        image = image.resize(
+            (
+                image_width + (image_width_needed_multiple - image_width % image_width_needed_multiple),
+                image_height + (image_height_needed_multiple - image_height % image_height_needed_multiple),
+            )
+        )
 
         # Get new image dimensions
         image_width, image_height = image.size
 
         # Convert image data type
-        image = image.convert('I')
+        image_mode = image.mode
+        if image_mode == "I;16":
+            image = image.convert("I")
+        else:
+            assert image_mode == "RGB"
 
         # Convert to FloatTensor
-        image = to_tensor(image)  # (1, height, width)
+        image = to_tensor(image)  # (num_channels, height, width)
 
-        # Check image values
-        assert image.dtype == torch.int32
-        assert image.min() >= 0
-        assert image.max() <= image_max
-
-        # Normalize to [0, 1] range
-        image = image / image_max
+        # Normalize to [0, 1] range if needed
+        if image_mode == "I;16":
+            image = image / image_max
 
         # Compute per cell dimensions
         cell_width = image_width // num_cells_per_row
@@ -88,21 +88,18 @@ def embed_ecdna(
         for row in range(num_cells_per_col):  # iterate over rows
             for col in range(num_cells_per_row):  # iterate over columns
                 # Get cell
-                cell = image[
-                       :,
-                       row * cell_height: (row + 1) * cell_height,
-                       col * cell_width: (col + 1) * cell_width
-                ]
+                cell = image[:, row * cell_height : (row + 1) * cell_height, col * cell_width : (col + 1) * cell_width]
 
                 # Keep cell if non-empty
                 if cell.abs().sum() > 0:
                     cells.append(cell)
 
         # Convert cells to tensor
-        cells = torch.stack(cells)  # (num_cells, 1, cell_height, cell_width)
+        cells = torch.stack(cells)  # (num_cells, num_channels, cell_height, cell_width)
 
-        # Expand to three channels
-        cells = cells.expand(-1, 3, -1, -1)  # (num_cells, 3, cell_height, cell_width)
+        # Expand to three channels if needed
+        if cells.shape[1] == 1:
+            cells = cells.expand(-1, 3, -1, -1)  # (num_cells, 3, cell_height, cell_width)
 
         # Move to cuda
         cells = cells.cuda()
@@ -113,7 +110,7 @@ def embed_ecdna(
         with torch.no_grad():
             for i in range(0, len(cells), batch_size):
                 # Get batch of cells
-                batch_cells = cells[i: i + batch_size]
+                batch_cells = cells[i : i + batch_size]
 
                 # Compute features
                 batch_features = model(batch_cells)
@@ -125,12 +122,12 @@ def embed_ecdna(
         cell_features = torch.cat(cell_features, dim=0)  # (num_cells, feature_dim)
 
         # Save features
-        save_path = save_dir / Path(*image_path.with_suffix('.pt').parts[-2:])
+        save_path = save_dir / Path(*image_path.with_suffix(".pt").parts[-2:])
         save_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(cell_features, save_path)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     from tap import tapify
 
     tapify(embed_ecdna)
